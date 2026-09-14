@@ -20,11 +20,11 @@ pub struct TabManager {
     tabs: Vec<Tab>,
     active: String,
     engines: HashMap<String, Box<dyn Engine>>,
-    factory: Box<dyn Fn() -> Box<dyn Engine> + Send>,
+    factory: Box<dyn Fn(&str) -> Box<dyn Engine> + Send>,
 }
 
 impl TabManager {
-    pub fn new(factory: Box<dyn Fn() -> Box<dyn Engine> + Send>) -> Self {
+    pub fn new(factory: Box<dyn Fn(&str) -> Box<dyn Engine> + Send>) -> Self {
         let mut m = Self {
             next_id: 0,
             tabs: Vec::new(),
@@ -179,7 +179,7 @@ impl TabManager {
 
     fn spawn_blank(&mut self) -> String {
         let id = self.alloc();
-        let mut engine = (self.factory)();
+        let mut engine = (self.factory)(&id);
         let _ = engine.navigate("about:blank");
         let tab = Tab {
             id: id.clone(),
@@ -250,7 +250,7 @@ pub struct BrowserSession {
 }
 
 impl BrowserSession {
-    pub fn new(store: Store, factory: Box<dyn Fn() -> Box<dyn Engine> + Send>) -> Self {
+    pub fn new(store: Store, factory: Box<dyn Fn(&str) -> Box<dyn Engine> + Send>) -> Self {
         Self {
             tabs: TabManager::new(factory),
             store,
@@ -415,7 +415,7 @@ mod tests {
     use crate::engine::FakeEngine;
 
     fn mgr() -> TabManager {
-        TabManager::new(Box::new(|| Box::new(FakeEngine::new())))
+        TabManager::new(Box::new(|_id| Box::new(FakeEngine::new())))
     }
 
     #[test]
@@ -505,7 +505,7 @@ mod tests {
     fn sess() -> (tempfile::TempDir, BrowserSession) {
         let dir = tempfile::tempdir().unwrap();
         let store = Store::open_path(&dir.path().join("ply.sqlite"));
-        let session = BrowserSession::new(store, Box::new(|| Box::new(FakeEngine::new())));
+        let session = BrowserSession::new(store, Box::new(|_id| Box::new(FakeEngine::new())));
         (dir, session)
     }
 
@@ -540,7 +540,7 @@ mod tests {
     fn memory_store_notice_on_visit() {
         let mut s = BrowserSession::new(
             Store::open_memory_only(),
-            Box::new(|| Box::new(FakeEngine::new())),
+            Box::new(|_id| Box::new(FakeEngine::new())),
         );
         assert_eq!(s.snapshot().persist_mode, PersistMode::Memory);
         let id = s.snapshot().active_tab_id.clone();

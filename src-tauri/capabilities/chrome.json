@@ -1,0 +1,23 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "chrome-acl",
+  "description": "Trusted Ply chrome only",
+  "windows": ["main"],
+  "webviews": ["chrome"],
+  "permissions": [
+    "core:default",
+    "core:event:allow-listen",
+    "allow-get-snapshot",
+    "allow-navigate",
+    "allow-new-tab",
+    "allow-close-tab",
+    "allow-switch-tab",
+    "allow-go-back",
+    "allow-go-forward",
+    "allow-reload",
+    "allow-toggle-bookmark",
+    "allow-list-bookmarks",
+    "allow-list-history",
+    "allow-search-history"
+  ]
+}

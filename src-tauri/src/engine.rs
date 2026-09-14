@@ -24,7 +24,7 @@ pub enum EngineEvent {
     LoadFailed { kind: LoadError },
 }
 
-pub trait Engine {
+pub trait Engine: Send {
     fn navigate(&mut self, url: &str) -> Result<(), LoadError>;
     fn go_back(&mut self) -> Result<(), LoadError>;
     fn go_forward(&mut self) -> Result<(), LoadError>;

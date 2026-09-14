@@ -1,0 +1,61 @@
+# ai-generated
+[[permission]]
+identifier = "allow-get-snapshot"
+description = "Allow chrome to read the session snapshot"
+commands.allow = ["get_snapshot"]
+
+[[permission]]
+identifier = "allow-navigate"
+description = "Allow chrome to navigate a tab"
+commands.allow = ["navigate"]
+
+[[permission]]
+identifier = "allow-new-tab"
+description = "Allow chrome to open a tab"
+commands.allow = ["new_tab"]
+
+[[permission]]
+identifier = "allow-close-tab"
+description = "Allow chrome to close a tab"
+commands.allow = ["close_tab"]
+
+[[permission]]
+identifier = "allow-switch-tab"
+description = "Allow chrome to switch tabs"
+commands.allow = ["switch_tab"]
+
+[[permission]]
+identifier = "allow-go-back"
+description = "Allow chrome to go back"
+commands.allow = ["go_back"]
+
+[[permission]]
+identifier = "allow-go-forward"
+description = "Allow chrome to go forward"
+commands.allow = ["go_forward"]
+
+[[permission]]
+identifier = "allow-reload"
+description = "Allow chrome to reload"
+commands.allow = ["reload"]
+
+[[permission]]
+identifier = "allow-toggle-bookmark"
+description = "Allow chrome to toggle a bookmark"
+commands.allow = ["toggle_bookmark"]
+
+[[permission]]
+identifier = "allow-list-bookmarks"
+description = "Allow chrome to list bookmarks"
+commands.allow = ["list_bookmarks"]
+
+[[permission]]
+identifier = "allow-list-history"
+description = "Allow chrome to list history"
+commands.allow = ["list_history"]
+
+[[permission]]
+identifier = "allow-search-history"
+description = "Allow chrome to search history"
+commands.allow = ["search_history"]
+# ai-generated end
