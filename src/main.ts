@@ -2,8 +2,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { renderChrome } from "./chrome";
+import { renderLibrary, type LibraryData } from "./library";
 import "./chrome.css";
-import type { ChromeHandlers, PersistNotice, SessionSnapshot } from "./types";
+import type {
+  BookmarkRow,
+  ChromeHandlers,
+  PersistNotice,
+  SessionSnapshot,
+  VisitRow,
+} from "./types";
 
 const el = document.getElementById("chrome-root");
 if (!el) {
@@ -11,6 +18,7 @@ if (!el) {
 }
 const root = el;
 
+let lastSnap: SessionSnapshot | null = null;
 let toastText = "";
 let toastTimer: number | undefined;
 
@@ -23,14 +31,15 @@ function showToast(message: string): void {
   window.clearTimeout(toastTimer);
   toastTimer = window.setTimeout(() => {
     toastText = "";
-    const el = root.querySelector("[data-test=toast]");
-    if (el) {
-      el.textContent = "";
+    const node = root.querySelector("[data-test=toast]");
+    if (node) {
+      node.textContent = "";
     }
   }, 4000);
 }
 
 function paint(snapshot: SessionSnapshot): void {
+  lastSnap = snapshot;
   renderChrome(root, snapshot, handlers);
   if (toastText) {
     const toast = root.querySelector("[data-test=toast]");
@@ -38,6 +47,38 @@ function paint(snapshot: SessionSnapshot): void {
       toast.textContent = toastText;
     }
   }
+}
+
+async function fillLibrary(data: LibraryData): Promise<void> {
+  const panel = root.querySelector<HTMLElement>("[data-test=library-panel]");
+  if (!panel) {
+    return;
+  }
+  renderLibrary(
+    panel,
+    data,
+    (url) => {
+      const tab_id = lastSnap?.active_tab_id;
+      if (tab_id) {
+        void invoke("navigate", { tab_id, input: url });
+      }
+      panel.setAttribute("hidden", "");
+    },
+    async (query) => {
+      const trimmed = query.trim();
+      const visits = trimmed
+        ? await invoke<VisitRow[]>("search_history", { query: trimmed })
+        : await invoke<VisitRow[]>("list_history", { limit: 100 });
+      const bookmarks = await invoke<BookmarkRow[]>("list_bookmarks");
+      await fillLibrary({ bookmarks, visits });
+    },
+  );
+}
+
+async function openLibrary(): Promise<void> {
+  const bookmarks = await invoke<BookmarkRow[]>("list_bookmarks");
+  const visits = await invoke<VisitRow[]>("list_history", { limit: 100 });
+  await fillLibrary({ bookmarks, visits });
 }
 
 const handlers: ChromeHandlers = {
@@ -65,7 +106,9 @@ const handlers: ChromeHandlers = {
   onToggleBookmark: (tab_id) => {
     void invoke("toggle_bookmark", { tab_id });
   },
-  onOpenLibrary: () => {},
+  onOpenLibrary: () => {
+    void openLibrary();
+  },
 };
 
 const snap = await invoke<SessionSnapshot>("get_snapshot");

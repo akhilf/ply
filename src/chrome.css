@@ -14,7 +14,7 @@ body {
   height: 100%;
   background: var(--mist);
   color: var(--ink);
-  font-family: "Familjen Grotesk", "Segoe UI", sans-serif;
+  font-family: "Familjen Grotesk", "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
 .ply-chrome {
@@ -23,6 +23,8 @@ body {
   flex-direction: column;
   background: var(--birch);
   border-bottom: 1px solid var(--spruce);
+  position: relative;
+  overflow: hidden;
 }
 
 .tab-strip {
@@ -62,7 +64,7 @@ body {
 .url-form input {
   width: 100%;
   box-sizing: border-box;
-  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-family: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
   font-size: 13px;
   padding: 6px 10px;
   border: 1px solid var(--spruce);
@@ -88,5 +90,50 @@ body {
 [data-test="memory-notice"] {
   background: var(--spruce);
   color: var(--mist);
+}
+
+[data-test="library-panel"] {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  overflow: auto;
+  background: var(--birch);
+  border-left: 8px solid var(--spruce);
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+[data-test="library-panel"][hidden] {
+  display: none;
+}
+
+.library-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+[data-test="library-panel"] h2 {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  color: var(--spruce);
+}
+
+[data-test="bookmark-row"],
+[data-test="visit-row"] {
+  text-align: left;
+  background: var(--mist);
+  border: 1px solid var(--spruce);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font: inherit;
+  color: var(--ink);
+}
+
+[data-test="history-search"] {
+  font: inherit;
+  padding: 4px 8px;
 }
 /* ai-generated end */
