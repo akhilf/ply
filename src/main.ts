@@ -19,6 +19,8 @@ if (!el) {
 const root = el;
 
 let lastSnap: SessionSnapshot | null = null;
+let libraryOpen = false;
+let libraryData: LibraryData | null = null;
 let toastText = "";
 let toastTimer: number | undefined;
 
@@ -47,9 +49,20 @@ function paint(snapshot: SessionSnapshot): void {
       toast.textContent = toastText;
     }
   }
+  if (libraryOpen && libraryData) {
+    void fillLibrary(libraryData);
+  }
+}
+
+async function closeLibrary(): Promise<void> {
+  libraryOpen = false;
+  const panel = root.querySelector<HTMLElement>("[data-test=library-panel]");
+  panel?.setAttribute("hidden", "");
+  await invoke("set_library_open", { open: false });
 }
 
 async function fillLibrary(data: LibraryData): Promise<void> {
+  libraryData = data;
   const panel = root.querySelector<HTMLElement>("[data-test=library-panel]");
   if (!panel) {
     return;
@@ -59,10 +72,10 @@ async function fillLibrary(data: LibraryData): Promise<void> {
     data,
     (url) => {
       const tab_id = lastSnap?.active_tab_id;
+      void closeLibrary();
       if (tab_id) {
         void invoke("navigate", { tab_id, input: url });
       }
-      panel.setAttribute("hidden", "");
     },
     async (query) => {
       const trimmed = query.trim();
@@ -72,10 +85,15 @@ async function fillLibrary(data: LibraryData): Promise<void> {
       const bookmarks = await invoke<BookmarkRow[]>("list_bookmarks");
       await fillLibrary({ bookmarks, visits });
     },
+    () => {
+      void closeLibrary();
+    },
   );
 }
 
 async function openLibrary(): Promise<void> {
+  libraryOpen = true;
+  await invoke("set_library_open", { open: true });
   const bookmarks = await invoke<BookmarkRow[]>("list_bookmarks");
   const visits = await invoke<VisitRow[]>("list_history", { limit: 100 });
   await fillLibrary({ bookmarks, visits });

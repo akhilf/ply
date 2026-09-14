@@ -11,6 +11,7 @@ export function renderLibrary(
   data: LibraryData,
   onOpenUrl: (url: string) => void,
   onSearch?: (query: string) => void,
+  onClose?: () => void,
 ): void {
   const prior = root.querySelector<HTMLInputElement>("[data-test=history-search]")?.value ?? "";
   root.replaceChildren();
@@ -26,6 +27,7 @@ export function renderLibrary(
   close.textContent = "Close";
   close.addEventListener("click", () => {
     root.setAttribute("hidden", "");
+    onClose?.();
   });
   head.append(title, close);
   root.append(head);

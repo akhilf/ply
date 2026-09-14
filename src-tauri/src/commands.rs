@@ -130,4 +130,9 @@ pub fn search_history(
 ) -> Vec<VisitRow> {
     state.lock().expect("session").search_history(&query)
 }
+
+#[tauri::command]
+pub fn set_library_open(app: AppHandle, open: bool) {
+    crate::shell::set_library_open(&app, open);
+}
 // ai-generated end

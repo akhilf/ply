@@ -58,4 +58,9 @@ commands.allow = ["list_history"]
 identifier = "allow-search-history"
 description = "Allow chrome to search history"
 commands.allow = ["search_history"]
+
+[[permission]]
+identifier = "allow-set-library-open"
+description = "Allow chrome to expand over content for the library panel"
+commands.allow = ["set_library_open"]
 # ai-generated end

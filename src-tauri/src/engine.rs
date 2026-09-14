@@ -31,6 +31,7 @@ pub trait Engine: Send {
     fn reload(&mut self) -> Result<(), LoadError>;
     fn set_visible(&mut self, visible: bool);
     fn is_visible(&self) -> bool;
+    fn observe_url(&mut self, url: &str);
     fn can_go_back(&self) -> bool;
     fn can_go_forward(&self) -> bool;
     fn current_url(&self) -> Option<String>;
@@ -62,16 +63,23 @@ impl FakeEngine {
     pub fn reload_count(&self) -> u32 {
         self.reload_count
     }
-}
 
-impl Engine for FakeEngine {
-    fn navigate(&mut self, url: &str) -> Result<(), LoadError> {
-        self.navigations.push(url.to_string());
+    fn push_history(&mut self, url: &str) {
+        if self.current_url().as_deref() == Some(url) {
+            return;
+        }
         if let Some(i) = self.index {
             self.history.truncate(i + 1);
         }
         self.history.push(url.to_string());
         self.index = Some(self.history.len() - 1);
+    }
+}
+
+impl Engine for FakeEngine {
+    fn navigate(&mut self, url: &str) -> Result<(), LoadError> {
+        self.navigations.push(url.to_string());
+        self.push_history(url);
         Ok(())
     }
 
@@ -109,6 +117,10 @@ impl Engine for FakeEngine {
 
     fn is_visible(&self) -> bool {
         self.visible
+    }
+
+    fn observe_url(&mut self, url: &str) {
+        self.push_history(url);
     }
 
     fn can_go_back(&self) -> bool {

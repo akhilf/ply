@@ -9,7 +9,8 @@
 }
 
 html,
-body {
+body,
+#chrome-root {
   margin: 0;
   height: 100%;
   background: var(--mist);
@@ -18,7 +19,8 @@ body {
 }
 
 .ply-chrome {
-  height: var(--chrome-height);
+  height: 100%;
+  min-height: var(--chrome-height);
   display: flex;
   flex-direction: column;
   background: var(--birch);
@@ -93,8 +95,8 @@ body {
 }
 
 [data-test="library-panel"] {
-  position: absolute;
-  inset: 0;
+  flex: 1;
+  min-height: 0;
   z-index: 8;
   overflow: auto;
   background: var(--birch);

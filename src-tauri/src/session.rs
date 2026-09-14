@@ -129,10 +129,15 @@ impl TabManager {
 
     pub fn apply_event(&mut self, id: &str, event: EngineEvent) {
         match event {
-            EngineEvent::UrlChanged { url } => self.write_tab(id, |t| {
-                t.url = url;
-                t.load_error = None;
-            }),
+            EngineEvent::UrlChanged { url } => {
+                if let Some(engine) = self.engines.get_mut(id) {
+                    engine.observe_url(&url);
+                }
+                self.write_tab(id, |t| {
+                    t.url = url;
+                    t.load_error = None;
+                });
+            }
             EngineEvent::TitleChanged { title } => self.write_tab(id, |t| {
                 if t.url == "about:blank" && title.is_empty() {
                     t.title = "New Tab".to_string();
@@ -517,6 +522,21 @@ mod tests {
             },
         );
         assert_eq!(m.tab(&id).unwrap().title, "Hi");
+    }
+
+    #[test]
+    fn in_page_url_change_enables_back() {
+        let mut m = mgr();
+        let id = m.active_tab_id().to_string();
+        assert!(!m.can_go_back());
+        m.apply_event(
+            &id,
+            EngineEvent::UrlChanged {
+                url: "https://a.test/".to_string(),
+            },
+        );
+        assert_eq!(m.tab(&id).unwrap().url, "https://a.test/");
+        assert!(m.can_go_back());
     }
 
     fn sess() -> (tempfile::TempDir, BrowserSession) {

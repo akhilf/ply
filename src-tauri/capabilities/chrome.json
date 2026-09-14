@@ -18,6 +18,7 @@
     "allow-toggle-bookmark",
     "allow-list-bookmarks",
     "allow-list-history",
-    "allow-search-history"
+    "allow-search-history",
+    "allow-set-library-open"
   ]
 }

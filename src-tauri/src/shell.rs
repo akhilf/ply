@@ -3,6 +3,7 @@ use crate::engine::{Engine, LoadError};
 use crate::session::BrowserSession;
 use crate::store::Store;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use tauri::webview::WebviewBuilder;
 use tauri::{
@@ -11,6 +12,8 @@ use tauri::{
 };
 
 pub const CHROME_HEIGHT: f64 = 92.0;
+
+pub struct LibraryOpen(pub AtomicBool);
 
 #[derive(Clone, Serialize, Deserialize)]
 struct EngineUrlPayload {
@@ -51,6 +54,17 @@ impl NativeEngine {
     fn webview(&self) -> Option<tauri::Webview> {
         self.app.get_webview(&self.webview_label)
     }
+
+    fn push_history(&mut self, url: &str) {
+        if self.current_url().as_deref() == Some(url) {
+            return;
+        }
+        if let Some(i) = self.index {
+            self.history.truncate(i + 1);
+        }
+        self.history.push(url.to_string());
+        self.index = Some(self.history.len() - 1);
+    }
 }
 
 impl Drop for NativeEngine {
@@ -66,11 +80,7 @@ impl Engine for NativeEngine {
         let parsed = url::Url::parse(url).map_err(|_| LoadError::InvalidUrl)?;
         let webview = self.webview().ok_or(LoadError::LoadFailed)?;
         webview.navigate(parsed).map_err(|_| LoadError::LoadFailed)?;
-        if let Some(i) = self.index {
-            self.history.truncate(i + 1);
-        }
-        self.history.push(url.to_string());
-        self.index = Some(self.history.len() - 1);
+        self.push_history(url);
         Ok(())
     }
 
@@ -123,6 +133,10 @@ impl Engine for NativeEngine {
 
     fn is_visible(&self) -> bool {
         self.visible
+    }
+
+    fn observe_url(&mut self, url: &str) {
+        self.push_history(url);
     }
 
     fn can_go_back(&self) -> bool {
@@ -196,10 +210,55 @@ fn chrome_slot(window: &tauri::Window) -> tauri::Result<(LogicalPosition<f64>, L
     ))
 }
 
+fn window_full_slot(window: &tauri::Window) -> tauri::Result<(LogicalPosition<f64>, LogicalSize<f64>)> {
+    let scale = window.scale_factor()?;
+    let logical = window.inner_size()?.to_logical::<f64>(scale);
+    Ok((
+        LogicalPosition::new(0.0, 0.0),
+        LogicalSize::new(logical.width, logical.height),
+    ))
+}
+
+fn tab_labels_and_active(app: &AppHandle) -> (Vec<String>, String) {
+    let state = app.state::<Mutex<BrowserSession>>();
+    let Ok(session) = state.lock() else {
+        return (Vec::new(), String::new());
+    };
+    let snap = session.snapshot();
+    (
+        snap.tabs.iter().map(|t| t.id.clone()).collect(),
+        snap.active_tab_id,
+    )
+}
+
+pub fn set_library_open(app: &AppHandle, open: bool) {
+    app.state::<LibraryOpen>()
+        .0
+        .store(open, Ordering::Relaxed);
+    layout_webviews(app);
+}
+
 pub fn layout_webviews(app: &AppHandle) {
     let Some(window) = app.get_window("main") else {
         return;
     };
+    let library_open = app
+        .try_state::<LibraryOpen>()
+        .map(|s| s.0.load(Ordering::Relaxed))
+        .unwrap_or(false);
+    let (labels, active) = tab_labels_and_active(app);
+    if library_open {
+        if let (Ok((pos, size)), Some(chrome)) = (window_full_slot(&window), app.get_webview("chrome")) {
+            let _ = chrome.set_position(pos);
+            let _ = chrome.set_size(size);
+        }
+        for label in labels {
+            if let Some(webview) = app.get_webview(&label) {
+                let _ = webview.hide();
+            }
+        }
+        return;
+    }
     if let (Ok((cpos, csize)), Some(chrome)) = (chrome_slot(&window), app.get_webview("chrome")) {
         let _ = chrome.set_position(cpos);
         let _ = chrome.set_size(csize);
@@ -207,17 +266,15 @@ pub fn layout_webviews(app: &AppHandle) {
     let Ok((pos, size)) = content_slot(&window) else {
         return;
     };
-    let labels: Vec<String> = {
-        let state = app.state::<Mutex<BrowserSession>>();
-        let Ok(session) = state.lock() else {
-            return;
-        };
-        session.snapshot().tabs.iter().map(|t| t.id.clone()).collect()
-    };
     for label in labels {
         if let Some(webview) = app.get_webview(&label) {
             let _ = webview.set_position(pos);
             let _ = webview.set_size(size);
+            if label == active {
+                let _ = webview.show();
+            } else {
+                let _ = webview.hide();
+            }
         }
     }
 }
@@ -265,6 +322,7 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
         Box::new(move |id| Box::new(NativeEngine::new(factory_app.clone(), id.to_string()))),
     );
     app.manage(Mutex::new(session));
+    app.manage(LibraryOpen(AtomicBool::new(false)));
 
     let listen_app = app.clone();
     let _ = app.listen("engine_url", move |event| {
