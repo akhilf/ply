@@ -99,30 +99,39 @@ async function openLibrary(): Promise<void> {
   await fillLibrary({ bookmarks, visits });
 }
 
+async function command(name: string, args?: Record<string, unknown>): Promise<void> {
+  try {
+    const snap = await invoke<SessionSnapshot>(name, args);
+    paint(snap);
+  } catch (err) {
+    showToast(err instanceof Error ? err.message : String(err));
+  }
+}
+
 const handlers: ChromeHandlers = {
   onNavigate: (tab_id, input) => {
-    void invoke("navigate", { tab_id, input });
+    void command("navigate", { tab_id, input });
   },
   onNewTab: () => {
-    void invoke("new_tab");
+    void command("new_tab");
   },
   onCloseTab: (tab_id) => {
-    void invoke("close_tab", { tab_id });
+    void command("close_tab", { tab_id });
   },
   onSwitchTab: (tab_id) => {
-    void invoke("switch_tab", { tab_id });
+    void command("switch_tab", { tab_id });
   },
   onBack: (tab_id) => {
-    void invoke("go_back", { tab_id });
+    void command("go_back", { tab_id });
   },
   onForward: (tab_id) => {
-    void invoke("go_forward", { tab_id });
+    void command("go_forward", { tab_id });
   },
   onReload: (tab_id) => {
-    void invoke("reload", { tab_id });
+    void command("reload", { tab_id });
   },
   onToggleBookmark: (tab_id) => {
-    void invoke("toggle_bookmark", { tab_id });
+    void command("toggle_bookmark", { tab_id });
   },
   onOpenLibrary: () => {
     void openLibrary();

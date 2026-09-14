@@ -17,6 +17,20 @@ fn emit_outcome(app: &AppHandle, out: &CommandOutcome) {
     }
 }
 
+fn with_session(
+    app: &AppHandle,
+    state: &State<'_, Mutex<BrowserSession>>,
+    f: impl FnOnce(&mut BrowserSession) -> CommandOutcome,
+) -> SessionSnapshot {
+    let out = {
+        let mut session = state.lock().expect("session");
+        f(&mut session)
+    };
+    crate::shell::layout_webviews(app);
+    emit_outcome(app, &out);
+    out.snapshot
+}
+
 #[tauri::command]
 pub fn get_snapshot(state: State<'_, Mutex<BrowserSession>>) -> SessionSnapshot {
     state.lock().expect("session").snapshot()
@@ -29,16 +43,12 @@ pub fn navigate(
     tab_id: String,
     input: String,
 ) -> SessionSnapshot {
-    let out = state.lock().expect("session").navigate(&tab_id, &input);
-    emit_outcome(&app, &out);
-    out.snapshot
+    with_session(&app, &state, |session| session.navigate(&tab_id, &input))
 }
 
 #[tauri::command]
 pub fn new_tab(app: AppHandle, state: State<'_, Mutex<BrowserSession>>) -> SessionSnapshot {
-    let out = state.lock().expect("session").new_tab();
-    emit_outcome(&app, &out);
-    out.snapshot
+    with_session(&app, &state, BrowserSession::new_tab)
 }
 
 #[tauri::command]
@@ -47,9 +57,7 @@ pub fn close_tab(
     state: State<'_, Mutex<BrowserSession>>,
     tab_id: String,
 ) -> SessionSnapshot {
-    let out = state.lock().expect("session").close_tab(&tab_id);
-    emit_outcome(&app, &out);
-    out.snapshot
+    with_session(&app, &state, |session| session.close_tab(&tab_id))
 }
 
 #[tauri::command]
@@ -58,9 +66,7 @@ pub fn switch_tab(
     state: State<'_, Mutex<BrowserSession>>,
     tab_id: String,
 ) -> SessionSnapshot {
-    let out = state.lock().expect("session").switch_tab(&tab_id);
-    emit_outcome(&app, &out);
-    out.snapshot
+    with_session(&app, &state, |session| session.switch_tab(&tab_id))
 }
 
 #[tauri::command]
@@ -69,9 +75,7 @@ pub fn go_back(
     state: State<'_, Mutex<BrowserSession>>,
     tab_id: String,
 ) -> SessionSnapshot {
-    let out = state.lock().expect("session").go_back(&tab_id);
-    emit_outcome(&app, &out);
-    out.snapshot
+    with_session(&app, &state, |session| session.go_back(&tab_id))
 }
 
 #[tauri::command]
@@ -80,9 +84,7 @@ pub fn go_forward(
     state: State<'_, Mutex<BrowserSession>>,
     tab_id: String,
 ) -> SessionSnapshot {
-    let out = state.lock().expect("session").go_forward(&tab_id);
-    emit_outcome(&app, &out);
-    out.snapshot
+    with_session(&app, &state, |session| session.go_forward(&tab_id))
 }
 
 #[tauri::command]
@@ -91,9 +93,7 @@ pub fn reload(
     state: State<'_, Mutex<BrowserSession>>,
     tab_id: String,
 ) -> SessionSnapshot {
-    let out = state.lock().expect("session").reload(&tab_id);
-    emit_outcome(&app, &out);
-    out.snapshot
+    with_session(&app, &state, |session| session.reload(&tab_id))
 }
 
 #[tauri::command]
@@ -102,9 +102,7 @@ pub fn toggle_bookmark(
     state: State<'_, Mutex<BrowserSession>>,
     tab_id: String,
 ) -> SessionSnapshot {
-    let out = state.lock().expect("session").toggle_bookmark(&tab_id);
-    emit_outcome(&app, &out);
-    out.snapshot
+    with_session(&app, &state, |session| session.toggle_bookmark(&tab_id))
 }
 
 #[tauri::command]

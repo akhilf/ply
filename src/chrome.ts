@@ -95,7 +95,6 @@ export function renderChrome(
   library.textContent = "Library";
   library.addEventListener("click", () => handlers.onOpenLibrary());
   toolbar.append(library);
-  root.append(toolbar);
 
   const error = document.createElement("div");
   error.setAttribute("data-test", "load-error");
@@ -104,7 +103,8 @@ export function renderChrome(
   } else {
     error.setAttribute("hidden", "");
   }
-  root.append(error);
+  toolbar.append(error);
+  root.append(toolbar);
 
   const toast = document.createElement("div");
   toast.setAttribute("data-test", "toast");

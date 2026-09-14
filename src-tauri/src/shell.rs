@@ -65,6 +65,19 @@ impl NativeEngine {
         self.history.push(url.to_string());
         self.index = Some(self.history.len() - 1);
     }
+
+    fn ensure_attached(&self) -> Result<(), LoadError> {
+        if self.webview().is_some() {
+            return Ok(());
+        }
+        let window = self.app.get_window("main").ok_or(LoadError::LoadFailed)?;
+        attach_content_webview(&self.app, &window, &self.webview_label)
+            .map_err(|_| LoadError::LoadFailed)?;
+        if self.webview().is_none() {
+            return Err(LoadError::LoadFailed);
+        }
+        Ok(())
+    }
 }
 
 impl Drop for NativeEngine {
@@ -78,8 +91,16 @@ impl Drop for NativeEngine {
 impl Engine for NativeEngine {
     fn navigate(&mut self, url: &str) -> Result<(), LoadError> {
         let parsed = url::Url::parse(url).map_err(|_| LoadError::InvalidUrl)?;
+        self.ensure_attached()?;
         let webview = self.webview().ok_or(LoadError::LoadFailed)?;
-        webview.navigate(parsed).map_err(|_| LoadError::LoadFailed)?;
+        let assigned = webview.navigate(parsed.clone());
+        if assigned.is_err() {
+            let href = serde_json::to_string(url).map_err(|_| LoadError::LoadFailed)?;
+            webview
+                .eval(&format!("window.location.replace({href})"))
+                .map_err(|_| LoadError::LoadFailed)?;
+        }
+        let _ = webview.show();
         self.push_history(url);
         Ok(())
     }
@@ -165,29 +186,32 @@ fn attach_content_webview(
     let tab_id = label.to_string();
     let builder = WebviewBuilder::new(label, WebviewUrl::External(blank))
         .on_navigation(move |url| {
-            let _ = app_for_nav.emit(
-                "engine_url",
-                EngineUrlPayload {
-                    tab_id: tab_id.clone(),
-                    url: url.to_string(),
-                },
-            );
+            let app = app_for_nav.clone();
+            let payload = EngineUrlPayload {
+                tab_id: tab_id.clone(),
+                url: url.to_string(),
+            };
+            let _ = std::thread::spawn(move || {
+                let _ = app.emit("engine_url", payload);
+            });
             true
         })
         .on_document_title_changed({
             let app_for_title = app.clone();
             let title_tab = label.to_string();
             move |_webview, title| {
-                let _ = app_for_title.emit(
-                    "engine_title",
-                    EngineTitlePayload {
-                        tab_id: title_tab.clone(),
-                        title,
-                    },
-                );
+                let app = app_for_title.clone();
+                let payload = EngineTitlePayload {
+                    tab_id: title_tab.clone(),
+                    title,
+                };
+                let _ = std::thread::spawn(move || {
+                    let _ = app.emit("engine_title", payload);
+                });
             }
         });
-    window.add_child(builder, pos, size)?;
+    let webview = window.add_child(builder, pos, size)?;
+    let _ = webview.show();
     Ok(())
 }
 
@@ -311,7 +335,8 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
 
     let (cpos, csize) = chrome_slot(&window)?;
     let chrome = WebviewBuilder::new("chrome", WebviewUrl::App("index.html".into()));
-    window.add_child(chrome, cpos, csize)?;
+    let chrome = window.add_child(chrome, cpos, csize)?;
+    let _ = chrome.set_auto_resize(false);
 
     let data_dir = app.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir());
     let _ = std::fs::create_dir_all(&data_dir);
@@ -352,10 +377,15 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
 
     let layout_app = app.clone();
     window.on_window_event(move |event| {
-        if matches!(event, WindowEvent::Resized(_)) {
+        if matches!(
+            event,
+            WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. }
+        ) {
             layout_webviews(&layout_app);
         }
     });
+
+    layout_webviews(app);
 
     Ok(())
 }

@@ -134,6 +134,9 @@ impl TabManager {
                     engine.observe_url(&url);
                 }
                 self.write_tab(id, |t| {
+                    if t.title == "New Tab" && url != "about:blank" {
+                        t.title = url.clone();
+                    }
                     t.url = url;
                     t.load_error = None;
                 });

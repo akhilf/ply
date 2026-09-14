@@ -13,14 +13,13 @@ body,
 #chrome-root {
   margin: 0;
   height: 100%;
-  background: var(--mist);
+  background: transparent;
   color: var(--ink);
   font-family: "Familjen Grotesk", "Segoe UI", "Helvetica Neue", sans-serif;
 }
 
 .ply-chrome {
-  height: 100%;
-  min-height: var(--chrome-height);
+  height: var(--chrome-height);
   display: flex;
   flex-direction: column;
   background: var(--birch);
@@ -82,7 +81,13 @@ body,
   font-size: 18px;
 }
 
-[data-test="load-error"],
+[data-test="load-error"]:not([hidden]) {
+  color: var(--copper);
+  white-space: nowrap;
+  font-size: 12px;
+  padding: 0 8px;
+}
+
 [data-test="memory-notice"],
 [data-test="toast"] {
   font-size: 12px;
