@@ -30,6 +30,7 @@ pub trait Engine: Send {
     fn go_forward(&mut self) -> Result<(), LoadError>;
     fn reload(&mut self) -> Result<(), LoadError>;
     fn set_visible(&mut self, visible: bool);
+    fn is_visible(&self) -> bool;
     fn can_go_back(&self) -> bool;
     fn can_go_forward(&self) -> bool;
     fn current_url(&self) -> Option<String>;
@@ -40,7 +41,6 @@ pub struct FakeEngine {
     index: Option<usize>,
     navigations: Vec<String>,
     reload_count: u32,
-    #[allow(dead_code)]
     visible: bool,
 }
 
@@ -105,6 +105,10 @@ impl Engine for FakeEngine {
 
     fn set_visible(&mut self, visible: bool) {
         self.visible = visible;
+    }
+
+    fn is_visible(&self) -> bool {
+        self.visible
     }
 
     fn can_go_back(&self) -> bool {

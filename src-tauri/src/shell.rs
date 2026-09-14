@@ -18,28 +18,46 @@ struct EngineUrlPayload {
     url: String,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+struct EngineTitlePayload {
+    tab_id: String,
+    title: String,
+}
+
 pub struct NativeEngine {
     app: AppHandle,
     webview_label: String,
     history: Vec<String>,
     index: Option<usize>,
+    visible: bool,
 }
 
 impl NativeEngine {
     pub fn new(app: AppHandle, label: String) -> Self {
-        if let Some(window) = app.get_window("main") {
-            let _ = attach_content_webview(&app, &window, &label);
+        if app.get_webview(&label).is_none() {
+            if let Some(window) = app.get_window("main") {
+                let _ = attach_content_webview(&app, &window, &label);
+            }
         }
         Self {
             app,
             webview_label: label,
             history: Vec::new(),
             index: None,
+            visible: true,
         }
     }
 
     fn webview(&self) -> Option<tauri::Webview> {
         self.app.get_webview(&self.webview_label)
+    }
+}
+
+impl Drop for NativeEngine {
+    fn drop(&mut self) {
+        if let Some(webview) = self.webview() {
+            let _ = webview.close();
+        }
     }
 }
 
@@ -93,6 +111,7 @@ impl Engine for NativeEngine {
     }
 
     fn set_visible(&mut self, visible: bool) {
+        self.visible = visible;
         if let Some(webview) = self.webview() {
             if visible {
                 let _ = webview.show();
@@ -100,6 +119,10 @@ impl Engine for NativeEngine {
                 let _ = webview.hide();
             }
         }
+    }
+
+    fn is_visible(&self) -> bool {
+        self.visible
     }
 
     fn can_go_back(&self) -> bool {
@@ -126,16 +149,30 @@ fn attach_content_webview(
     let blank = url::Url::parse("about:blank").expect("about:blank");
     let app_for_nav = app.clone();
     let tab_id = label.to_string();
-    let builder = WebviewBuilder::new(label, WebviewUrl::External(blank)).on_navigation(move |url| {
-        let _ = app_for_nav.emit(
-            "engine_url",
-            EngineUrlPayload {
-                tab_id: tab_id.clone(),
-                url: url.to_string(),
-            },
-        );
-        true
-    });
+    let builder = WebviewBuilder::new(label, WebviewUrl::External(blank))
+        .on_navigation(move |url| {
+            let _ = app_for_nav.emit(
+                "engine_url",
+                EngineUrlPayload {
+                    tab_id: tab_id.clone(),
+                    url: url.to_string(),
+                },
+            );
+            true
+        })
+        .on_document_title_changed({
+            let app_for_title = app.clone();
+            let title_tab = label.to_string();
+            move |_webview, title| {
+                let _ = app_for_title.emit(
+                    "engine_title",
+                    EngineTitlePayload {
+                        tab_id: title_tab.clone(),
+                        title,
+                    },
+                );
+            }
+        });
     window.add_child(builder, pos, size)?;
     Ok(())
 }
@@ -185,6 +222,30 @@ pub fn layout_webviews(app: &AppHandle) {
     }
 }
 
+fn emit_session(app: &AppHandle, out: crate::session::CommandOutcome) {
+    if out.emit {
+        let _ = app.emit_to(
+            EventTarget::webview("chrome"),
+            "session_changed",
+            &out.snapshot,
+        );
+    }
+    if let Some(notice) = out.notice {
+        let _ = app.emit_to(EventTarget::webview("chrome"), "persist_notice", notice);
+    }
+}
+
+fn apply_engine_event(app: &AppHandle, tab_id: &str, event: crate::engine::EngineEvent) {
+    let out = {
+        let state = app.state::<Mutex<BrowserSession>>();
+        let Ok(mut session) = state.try_lock() else {
+            return;
+        };
+        session.apply_event(tab_id, event)
+    };
+    emit_session(app, out);
+}
+
 pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
     let window = tauri::window::WindowBuilder::new(app, "main")
         .title("Ply")
@@ -210,23 +271,25 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
         let Ok(payload) = serde_json::from_str::<EngineUrlPayload>(event.payload()) else {
             return;
         };
-        let out = {
-            let state = listen_app.state::<Mutex<BrowserSession>>();
-            let Ok(mut session) = state.try_lock() else {
-                return;
-            };
-            session.apply_event(
-                &payload.tab_id,
-                crate::engine::EngineEvent::UrlChanged { url: payload.url },
-            )
+        apply_engine_event(
+            &listen_app,
+            &payload.tab_id,
+            crate::engine::EngineEvent::UrlChanged { url: payload.url },
+        );
+    });
+
+    let title_app = app.clone();
+    let _ = app.listen("engine_title", move |event| {
+        let Ok(payload) = serde_json::from_str::<EngineTitlePayload>(event.payload()) else {
+            return;
         };
-        if out.emit {
-            let _ = listen_app.emit_to(
-                EventTarget::webview("chrome"),
-                "session_changed",
-                &out.snapshot,
-            );
-        }
+        apply_engine_event(
+            &title_app,
+            &payload.tab_id,
+            crate::engine::EngineEvent::TitleChanged {
+                title: payload.title,
+            },
+        );
     });
 
     let layout_app = app.clone();

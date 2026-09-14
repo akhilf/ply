@@ -210,6 +210,11 @@ impl TabManager {
             f(tab);
         }
     }
+
+    #[cfg(test)]
+    pub fn engine_visible(&self, id: &str) -> bool {
+        self.engines.get(id).map(|e| e.is_visible()).unwrap_or(false)
+    }
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -435,6 +440,18 @@ mod tests {
         assert_eq!(id, "tab-2");
         assert_eq!(m.active_tab_id(), "tab-2");
         assert_eq!(m.tabs().len(), 2);
+    }
+
+    #[test]
+    fn switch_hides_previous_engine() {
+        let mut m = mgr();
+        let first = m.active_tab_id().to_string();
+        let second = m.new_tab();
+        assert!(m.engine_visible(&second));
+        assert!(!m.engine_visible(&first));
+        m.switch_tab(&first).unwrap();
+        assert!(m.engine_visible(&first));
+        assert!(!m.engine_visible(&second));
     }
 
     #[test]
