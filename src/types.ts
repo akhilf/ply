@@ -21,6 +21,24 @@ export type SessionSnapshot = {
   persist_mode: "disk" | "memory";
 };
 
+export type PersistNotice = {
+  kind: "error" | "warning";
+  message: string;
+};
+
+export type BookmarkRow = {
+  url: string;
+  title: string;
+  created_at: number;
+};
+
+export type VisitRow = {
+  id: number;
+  url: string;
+  title: string;
+  visited_at: number;
+};
+
 export type ChromeHandlers = {
   onNavigate: (tabId: string, input: string) => void;
   onNewTab: () => void;
