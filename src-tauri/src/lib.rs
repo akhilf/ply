@@ -2,6 +2,7 @@
 mod classify;
 mod engine;
 mod session;
+mod store;
 // ai-generated end
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
