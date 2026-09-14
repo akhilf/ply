@@ -1,6 +1,8 @@
 // ai-generated
+use crate::classify::{classify_input, ClassifyResult};
 use crate::engine::{Engine, EngineEvent, EngineKind, LoadError};
-use serde::Serialize;
+use crate::store::{BookmarkRow, PersistMode, Store, VisitRow};
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize)]
@@ -210,6 +212,203 @@ impl TabManager {
     }
 }
 
+#[derive(Debug, Clone, Serialize)]
+pub struct SessionSnapshot {
+    pub tabs: Vec<Tab>,
+    pub active_tab_id: String,
+    pub current_url: String,
+    pub can_go_back: bool,
+    pub can_go_forward: bool,
+    pub is_bookmarked: bool,
+    pub load_error: Option<LoadError>,
+    pub persist_mode: PersistMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum NoticeKind {
+    Error,
+    #[allow(dead_code)]
+    Warning,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PersistNotice {
+    pub kind: NoticeKind,
+    pub message: String,
+}
+
+pub struct CommandOutcome {
+    pub snapshot: SessionSnapshot,
+    pub notice: Option<PersistNotice>,
+    pub emit: bool,
+}
+
+pub struct BrowserSession {
+    tabs: TabManager,
+    store: Store,
+}
+
+impl BrowserSession {
+    pub fn new(store: Store, factory: Box<dyn Fn() -> Box<dyn Engine> + Send>) -> Self {
+        Self {
+            tabs: TabManager::new(factory),
+            store,
+        }
+    }
+
+    pub fn snapshot(&self) -> SessionSnapshot {
+        let active_id = self.tabs.active_tab_id().to_string();
+        let active = self.tabs.tab(&active_id);
+        let current_url = active.map(|t| t.url.clone()).unwrap_or_default();
+        let load_error = active.and_then(|t| t.load_error);
+        let is_bookmarked = current_url != "about:blank" && self.store.is_bookmarked(&current_url);
+        SessionSnapshot {
+            tabs: self.tabs.tabs().to_vec(),
+            active_tab_id: active_id,
+            current_url,
+            can_go_back: self.tabs.can_go_back(),
+            can_go_forward: self.tabs.can_go_forward(),
+            is_bookmarked,
+            load_error,
+            persist_mode: self.store.persist_mode(),
+        }
+    }
+
+    pub fn navigate(&mut self, tab_id: &str, input: &str) -> CommandOutcome {
+        match classify_input(input) {
+            ClassifyResult::NoOp => CommandOutcome {
+                snapshot: self.snapshot(),
+                notice: None,
+                emit: false,
+            },
+            ClassifyResult::Url(url) => {
+                let previous = self.current_url_of(tab_id);
+                let _ = self.tabs.navigate_url(tab_id, &url);
+                let title = self
+                    .tabs
+                    .tab(tab_id)
+                    .map(|t| t.title.clone())
+                    .unwrap_or_else(|| url.clone());
+                let notice = self.maybe_visit(&previous, &url, &title);
+                CommandOutcome {
+                    snapshot: self.snapshot(),
+                    notice,
+                    emit: true,
+                }
+            }
+        }
+    }
+
+    pub fn new_tab(&mut self) -> CommandOutcome {
+        self.tabs.new_tab();
+        self.emit_ok(None)
+    }
+
+    pub fn close_tab(&mut self, tab_id: &str) -> CommandOutcome {
+        self.tabs.close_tab(tab_id);
+        self.emit_ok(None)
+    }
+
+    pub fn switch_tab(&mut self, tab_id: &str) -> CommandOutcome {
+        let _ = self.tabs.switch_tab(tab_id);
+        self.emit_ok(None)
+    }
+
+    pub fn go_back(&mut self, tab_id: &str) -> CommandOutcome {
+        let previous = self.current_url_of(tab_id);
+        let _ = self.tabs.go_back(tab_id);
+        let notice = self.visit_active(tab_id, &previous);
+        self.emit_ok(notice)
+    }
+
+    pub fn go_forward(&mut self, tab_id: &str) -> CommandOutcome {
+        let previous = self.current_url_of(tab_id);
+        let _ = self.tabs.go_forward(tab_id);
+        let notice = self.visit_active(tab_id, &previous);
+        self.emit_ok(notice)
+    }
+
+    pub fn reload(&mut self, tab_id: &str) -> CommandOutcome {
+        let _ = self.tabs.reload(tab_id);
+        self.emit_ok(None)
+    }
+
+    pub fn toggle_bookmark(&mut self, tab_id: &str) -> CommandOutcome {
+        let Some(tab) = self.tabs.tab(tab_id) else {
+            return self.emit_ok(None);
+        };
+        if tab.url == "about:blank" {
+            return self.emit_ok(None);
+        }
+        let url = tab.url.clone();
+        let title = tab.title.clone();
+        let notice = match self.store.toggle_bookmark(&url, &title) {
+            Ok(_) => None,
+            Err(_) => Some(PersistNotice {
+                kind: NoticeKind::Error,
+                message: "Couldn't save bookmark".to_string(),
+            }),
+        };
+        self.emit_ok(notice)
+    }
+
+    pub fn list_bookmarks(&self) -> Vec<BookmarkRow> {
+        self.store.list_bookmarks()
+    }
+
+    pub fn list_history(&self, limit: Option<usize>) -> Vec<VisitRow> {
+        self.store.list_history(limit.unwrap_or(100))
+    }
+
+    pub fn search_history(&self, query: &str) -> Vec<VisitRow> {
+        self.store.search_history(query)
+    }
+
+    pub fn apply_event(&mut self, tab_id: &str, event: EngineEvent) -> CommandOutcome {
+        let previous = self.current_url_of(tab_id);
+        self.tabs.apply_event(tab_id, event);
+        let notice = self.visit_active(tab_id, &previous);
+        self.emit_ok(notice)
+    }
+
+    fn current_url_of(&self, tab_id: &str) -> String {
+        self.tabs
+            .tab(tab_id)
+            .map(|t| t.url.clone())
+            .unwrap_or_default()
+    }
+
+    fn visit_active(&mut self, tab_id: &str, previous: &str) -> Option<PersistNotice> {
+        let tab = self.tabs.tab(tab_id)?;
+        let url = tab.url.clone();
+        let title = tab.title.clone();
+        self.maybe_visit(previous, &url, &title)
+    }
+
+    fn maybe_visit(&mut self, previous: &str, url: &str, title: &str) -> Option<PersistNotice> {
+        let is_http = url.starts_with("http://") || url.starts_with("https://");
+        if !is_http || url == previous {
+            return None;
+        }
+        match self.store.append_visit(url, title) {
+            Ok(()) => None,
+            Err(_) => Some(PersistNotice {
+                kind: NoticeKind::Error,
+                message: "Couldn't save history".to_string(),
+            }),
+        }
+    }
+
+    fn emit_ok(&self, notice: Option<PersistNotice>) -> CommandOutcome {
+        CommandOutcome {
+            snapshot: self.snapshot(),
+            notice,
+            emit: true,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,6 +500,77 @@ mod tests {
             },
         );
         assert_eq!(m.tab(&id).unwrap().title, "Hi");
+    }
+
+    fn sess() -> (tempfile::TempDir, BrowserSession) {
+        let dir = tempfile::tempdir().unwrap();
+        let store = Store::open_path(&dir.path().join("ply.sqlite"));
+        let session = BrowserSession::new(store, Box::new(|| Box::new(FakeEngine::new())));
+        (dir, session)
+    }
+
+    #[test]
+    fn noop_empty_navigate() {
+        let (_dir, mut s) = sess();
+        let before = s.snapshot().current_url;
+        let out = s.navigate(&s.snapshot().active_tab_id.clone(), "  ");
+        assert!(!out.emit);
+        assert_eq!(out.snapshot.current_url, before);
+    }
+
+    #[test]
+    fn navigate_records_visit() {
+        let (_dir, mut s) = sess();
+        let id = s.snapshot().active_tab_id.clone();
+        let out = s.navigate(&id, "example.com");
+        assert!(out.emit);
+        assert_eq!(out.snapshot.current_url, "https://example.com/");
+        assert_eq!(s.list_history(None).len(), 1);
+    }
+
+    #[test]
+    fn bookmark_blank_noop() {
+        let (_dir, mut s) = sess();
+        let id = s.snapshot().active_tab_id.clone();
+        s.toggle_bookmark(&id);
+        assert!(s.list_bookmarks().is_empty());
+    }
+
+    #[test]
+    fn memory_store_notice_on_visit() {
+        let mut s = BrowserSession::new(
+            Store::open_memory_only(),
+            Box::new(|| Box::new(FakeEngine::new())),
+        );
+        assert_eq!(s.snapshot().persist_mode, PersistMode::Memory);
+        let id = s.snapshot().active_tab_id.clone();
+        let out = s.navigate(&id, "https://a.test/");
+        assert_eq!(out.notice.unwrap().message, "Couldn't save history");
+        assert_eq!(out.snapshot.current_url, "https://a.test/");
+    }
+
+    #[test]
+    fn session_commands_roundtrip() {
+        let (_dir, mut s) = sess();
+        let first = s.snapshot().active_tab_id.clone();
+        let created = s.new_tab();
+        let second = created.snapshot.active_tab_id.clone();
+        s.navigate(&second, "https://a.test/");
+        s.switch_tab(&first);
+        s.close_tab(&second);
+        let id = s.snapshot().active_tab_id.clone();
+        s.navigate(&id, "https://b.test/");
+        s.go_back(&id);
+        s.go_forward(&id);
+        s.reload(&id);
+        assert!(s.search_history("b").len() >= 1);
+        s.apply_event(
+            &id,
+            EngineEvent::TitleChanged {
+                title: "Beta".to_string(),
+            },
+        );
+        assert_eq!(s.snapshot().tabs[0].title, "Beta");
     }
 }
 // ai-generated end
