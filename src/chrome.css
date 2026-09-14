@@ -1,0 +1,92 @@
+/* ai-generated */
+:root {
+  --birch: #e7e1d6;
+  --ink: #1a1714;
+  --spruce: #1f3d34;
+  --copper: #b56a3a;
+  --mist: #f6f1e8;
+  --chrome-height: 92px;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: var(--mist);
+  color: var(--ink);
+  font-family: "Familjen Grotesk", "Segoe UI", sans-serif;
+}
+
+.ply-chrome {
+  height: var(--chrome-height);
+  display: flex;
+  flex-direction: column;
+  background: var(--birch);
+  border-bottom: 1px solid var(--spruce);
+}
+
+.tab-strip {
+  display: flex;
+  gap: 2px;
+  background: var(--spruce);
+  padding: 4px 6px 0;
+  min-height: 32px;
+}
+
+.tab-strip button {
+  background: color-mix(in srgb, var(--spruce) 70%, var(--birch));
+  color: var(--mist);
+  border: 0;
+  border-radius: 6px 6px 0 0;
+  padding: 4px 8px;
+  font: inherit;
+}
+
+.tab-strip button[aria-selected="true"] {
+  background: var(--birch);
+  color: var(--ink);
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  flex: 1;
+}
+
+.url-form {
+  flex: 1;
+}
+
+.url-form input {
+  width: 100%;
+  box-sizing: border-box;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 13px;
+  padding: 6px 10px;
+  border: 1px solid var(--spruce);
+  border-radius: 4px;
+  background: var(--mist);
+  color: var(--ink);
+}
+
+[data-test="bookmark"] {
+  color: var(--copper);
+  background: transparent;
+  border: 0;
+  font-size: 18px;
+}
+
+[data-test="load-error"],
+[data-test="memory-notice"],
+[data-test="toast"] {
+  font-size: 12px;
+  padding: 0 8px 4px;
+}
+
+[data-test="memory-notice"] {
+  background: var(--spruce);
+  color: var(--mist);
+}
+/* ai-generated end */
