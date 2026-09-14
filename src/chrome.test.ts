@@ -74,6 +74,14 @@ describe("renderChrome", () => {
     expect(calls).toEqual([]);
   });
 
+  it("highlights the Ply wordmark in chrome", () => {
+    const root = document.createElement("div");
+    renderChrome(root, base, noopHandlers());
+    const brand = root.querySelector("[data-test=brand]")!;
+    expect(brand.textContent).toContain("Ply");
+    expect(brand.querySelector(".ply-wordmark")!.textContent).toBe("Ply");
+  });
+
   it("shows the memory persist banner", () => {
     const root = document.createElement("div");
     renderChrome(root, { ...base, persist_mode: "memory" }, noopHandlers());
