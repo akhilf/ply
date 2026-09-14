@@ -17,6 +17,31 @@ Owner: [akhilf](https://github.com/akhilf)
 
 Stage 2 (not in this tree yet) will add a small HTML/CSS engine in Rust. Same chrome, different page ply.
 
+## Architecture
+
+![Ply architecture](docs/architecture.svg)
+
+One native window. Chrome and page content never share a JavaScript world. TypeScript only paints `SessionSnapshot`. Rust owns tabs, navigation, and SQLite.
+
+```mermaid
+flowchart TB
+  subgraph window["Tauri window"]
+    chrome["Chrome webview — trusted TypeScript<br/>tabs · URL · back/forward/reload · Library"]
+    content["Content slot — untrusted<br/>Stage 1 NativeEngine OS webview · Stage 2 ToyEngine"]
+    chrome --- content
+  end
+  rust["Rust core — source of truth"]
+  session["Session / TabManager"]
+  engine["Engine slot"]
+  store["SQLite store<br/>bookmarks · history"]
+  window -->|"commands / events only"| rust
+  rust --> session
+  rust --> engine
+  rust --> store
+```
+
+Chrome cannot navigate to user `http(s)` URLs. Content webviews cannot invoke chrome commands.
+
 ## Clone and run (new developers)
 
 ### 1. Prerequisites
@@ -86,6 +111,7 @@ cd src-tauri && cargo test --lib
 | `src-tauri/` | Rust session, tabs, store, native webviews |
 | `index.html` | Chrome shell only — pages load in separate webviews |
 | `docs/ply.png` | Screenshot of Ply on GitHub |
+| `docs/architecture.svg` | Architecture diagram |
 
 ## Name
 

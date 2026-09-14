@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 920 640" role="img" aria-label="Ply architecture">
+  <!-- ai-generated -->
+  <title>Ply architecture</title>
+  <rect width="920" height="640" fill="#f6f1e8"/>
+  <text x="460" y="36" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="20" font-weight="700" fill="#1a1714">Ply architecture</text>
+  <text x="460" y="58" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="13" fill="#1f3d34">One native window ù two isolated webviews ù Rust owns session state</text>
+
+  <rect x="40" y="80" width="840" height="250" rx="14" fill="#e7e1d6" stroke="#1f3d34" stroke-width="2"/>
+  <text x="60" y="106" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="14" font-weight="700" fill="#1f3d34">Tauri window</text>
+
+  <rect x="60" y="122" width="800" height="78" rx="10" fill="#1f3d34"/>
+  <text x="80" y="150" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="16" font-weight="700" fill="#f0c29a">Chrome webview (trusted)</text>
+  <text x="80" y="174" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="13" fill="#f6f1e8">TypeScript ù tabs ù back/forward/reload ù address bar ù bookmarks ù never loads http(s) pages</text>
+
+  <rect x="60" y="214" width="800" height="96" rx="10" fill="#f6f1e8" stroke="#b56a3a" stroke-width="2"/>
+  <text x="80" y="244" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="16" font-weight="700" fill="#b56a3a">Content slot (untrusted)</text>
+  <text x="80" y="268" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="13" fill="#1a1714">Stage 1: one OS webview per tab (WebKit / WebView2 / WebKitGTK)</text>
+  <text x="80" y="290" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="13" fill="#1a1714">Stage 2: ToyEngine paints HTML/CSS into the same slot ù no JavaScript</text>
+
+  <line x1="460" y1="330" x2="460" y2="372" stroke="#1f3d34" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="460" y1="412" x2="460" y2="372" stroke="#1f3d34" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="478" y="358" font-family="IBM Plex Mono, ui-monospace, monospace" font-size="12" fill="#1f3d34">commands / events only</text>
+
+  <rect x="40" y="412" width="840" height="196" rx="14" fill="#1f3d34"/>
+  <text x="60" y="440" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="16" font-weight="700" fill="#f0c29a">Rust core (source of truth)</text>
+
+  <rect x="60" y="458" width="250" height="128" rx="10" fill="#e7e1d6"/>
+  <text x="185" y="488" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="14" font-weight="700" fill="#1a1714">Session</text>
+  <text x="185" y="512" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="12" fill="#1f3d34">TabManager</text>
+  <text x="185" y="532" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="12" fill="#1f3d34">SessionSnapshot</text>
+  <text x="185" y="552" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="12" fill="#1f3d34">URL classify</text>
+
+  <rect x="330" y="458" width="250" height="128" rx="10" fill="#e7e1d6"/>
+  <text x="455" y="488" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="14" font-weight="700" fill="#1a1714">Engine slot</text>
+  <text x="455" y="512" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="12" fill="#1f3d34">NativeEngine (Stage 1)</text>
+  <text x="455" y="532" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="12" fill="#1f3d34">ToyEngine (Stage 2)</text>
+  <text x="455" y="552" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="12" fill="#1f3d34">back / forward owned here</text>
+
+  <rect x="600" y="458" width="260" height="128" rx="10" fill="#e7e1d6"/>
+  <text x="730" y="488" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="14" font-weight="700" fill="#1a1714">Store</text>
+  <text x="730" y="512" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="12" fill="#1f3d34">SQLite ply.sqlite</text>
+  <text x="730" y="532" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="12" fill="#1f3d34">bookmarks ù history</text>
+  <text x="730" y="552" text-anchor="middle" font-family="Segoe UI, Helvetica Neue, sans-serif" font-size="12" fill="#1f3d34">app data directory</text>
+
+  <defs>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="4" refY="4" orient="auto">
+      <path d="M0,0 L8,4 L0,8 z" fill="#1f3d34"/>
+    </marker>
+  </defs>
+  <!-- ai-generated end -->
+</svg>
