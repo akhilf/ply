@@ -71,10 +71,10 @@ async function fillLibrary(data: LibraryData): Promise<void> {
     panel,
     data,
     (url) => {
-      const tab_id = lastSnap?.active_tab_id;
+      const tabId = lastSnap?.active_tab_id;
       void closeLibrary();
-      if (tab_id) {
-        void invoke("navigate", { tab_id, input: url });
+      if (tabId) {
+        void command("navigate", { tabId, input: url });
       }
     },
     async (query) => {
@@ -109,29 +109,29 @@ async function command(name: string, args?: Record<string, unknown>): Promise<vo
 }
 
 const handlers: ChromeHandlers = {
-  onNavigate: (tab_id, input) => {
-    void command("navigate", { tab_id, input });
+  onNavigate: (tabId, input) => {
+    void command("navigate", { tabId, input });
   },
   onNewTab: () => {
     void command("new_tab");
   },
-  onCloseTab: (tab_id) => {
-    void command("close_tab", { tab_id });
+  onCloseTab: (tabId) => {
+    void command("close_tab", { tabId });
   },
-  onSwitchTab: (tab_id) => {
-    void command("switch_tab", { tab_id });
+  onSwitchTab: (tabId) => {
+    void command("switch_tab", { tabId });
   },
-  onBack: (tab_id) => {
-    void command("go_back", { tab_id });
+  onBack: (tabId) => {
+    void command("go_back", { tabId });
   },
-  onForward: (tab_id) => {
-    void command("go_forward", { tab_id });
+  onForward: (tabId) => {
+    void command("go_forward", { tabId });
   },
-  onReload: (tab_id) => {
-    void command("reload", { tab_id });
+  onReload: (tabId) => {
+    void command("reload", { tabId });
   },
-  onToggleBookmark: (tab_id) => {
-    void command("toggle_bookmark", { tab_id });
+  onToggleBookmark: (tabId) => {
+    void command("toggle_bookmark", { tabId });
   },
   onOpenLibrary: () => {
     void openLibrary();
