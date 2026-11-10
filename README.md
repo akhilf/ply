@@ -9,19 +9,16 @@ Owner: [akhilf](https://github.com/akhilf)
 
 ## What it does
 
-**Stage 1**
+A personal desktop browser you run from source. Pages use the OS webview. The toolbar is a separate, trusted ply.
 
 - Tabs, address bar, back / forward / reload
-- Bookmarks and history (SQLite in the app data directory)
-- Isolated chrome: untrusted pages never share JavaScript with the toolbar
+- Bookmarks
+- **Library** — history grouped by day, with visit counts and search
+- **Downloads** — saves go to your Downloads folder; open or reveal from chrome
+- **Find in page** — ⌘F / Ctrl+F, next and previous match
+- Isolated chrome: a site cannot drive the toolbar
 - Search: non-URL input goes to DuckDuckGo
-- macOS, Windows, and Linux (Tauri 2 + OS webview)
-
-**Stage 2 — daily driver**
-
-- Downloads: OS webview saves go to your Downloads folder; open or reveal from chrome
-- Find in page (⌘F / Ctrl+F), next and previous match
-- Browsing history grouped by day, with visit counts and search
+- macOS, Windows, and Linux (Tauri 2)
 
 ## Architecture
 
@@ -116,9 +113,7 @@ cd src-tauri && cargo test --lib
 | Path | Role |
 | --- | --- |
 | `src/` | TypeScript chrome UI |
-| `src-tauri/` | Rust session, tabs, store, native webviews, toy engine |
-| `src-tauri/src/toy/` | HTML/CSS parser, layout, paint |
-| `fixtures/` | `ply://` pages for the toy engine |
+| `src-tauri/` | Rust session, tabs, store, native webviews |
 | `index.html` | Chrome shell only — pages load in separate webviews |
 | `docs/ply.png` | Screenshot of Ply on GitHub |
 | `docs/architecture.svg` | Architecture diagram |
