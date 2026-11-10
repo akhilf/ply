@@ -5,7 +5,7 @@ A personal desktop web browser. **Ply** means a layer — chrome (tabs, address 
 
 Owner: [akhilf](https://github.com/akhilf)
 
-![Ply opening Google](docs/ply.png)
+![Ply opening Google](https://github.com/akhilf/ply/raw/main/docs/ply-window.png)
 
 ## What it does
 
@@ -115,7 +115,7 @@ cd src-tauri && cargo test --lib
 | `src/` | TypeScript chrome UI |
 | `src-tauri/` | Rust session, tabs, store, native webviews |
 | `index.html` | Chrome shell only — pages load in separate webviews |
-| `docs/ply.png` | Screenshot of Ply on GitHub |
+| `docs/ply-window.png` | Screenshot of Ply on GitHub |
 | `docs/architecture.svg` | Architecture diagram |
 
 ## Name
