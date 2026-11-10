@@ -1,11 +1,12 @@
 // ai-generated
 import { LOAD_ERROR_COPY, MEMORY_NOTICE } from "./notices";
-import type { ChromeHandlers, SessionSnapshot } from "./types";
+import type { ChromeExtras, ChromeHandlers, SessionSnapshot } from "./types";
 
 export function renderChrome(
   root: HTMLElement,
   snapshot: SessionSnapshot,
   handlers: ChromeHandlers,
+  extras: ChromeExtras = {},
 ): void {
   root.replaceChildren();
   root.classList.add("ply-chrome");
@@ -122,6 +123,9 @@ export function renderChrome(
   );
   toolbar.append(bookmark);
 
+  const findBtn = navButton("find", "Find in page", false, () => handlers.onOpenFind(), ICON_FIND);
+  toolbar.append(findBtn);
+
   const library = document.createElement("button");
   library.type = "button";
   library.className = "library-btn";
@@ -129,6 +133,22 @@ export function renderChrome(
   library.textContent = "Library";
   library.addEventListener("click", () => handlers.onOpenLibrary());
   toolbar.append(library);
+
+  const downloads = document.createElement("button");
+  downloads.type = "button";
+  downloads.className = "library-btn downloads-btn";
+  downloads.setAttribute("data-test", "downloads");
+  downloads.textContent = "Downloads";
+  downloads.addEventListener("click", () => handlers.onOpenDownloads());
+  const saving = extras.downloadSaving ?? 0;
+  if (saving > 0) {
+    const badge = document.createElement("span");
+    badge.className = "downloads-badge";
+    badge.setAttribute("data-test", "downloads-badge");
+    badge.textContent = String(saving);
+    downloads.append(badge);
+  }
+  toolbar.append(downloads);
 
   const error = document.createElement("div");
   error.setAttribute("data-test", "load-error");
@@ -140,14 +160,56 @@ export function renderChrome(
   toolbar.append(error);
   root.append(toolbar);
 
+  if (extras.findOpen) {
+    const findBar = document.createElement("form");
+    findBar.className = "find-bar";
+    findBar.setAttribute("data-test", "find-bar");
+    const findInput = document.createElement("input");
+    findInput.type = "search";
+    findInput.setAttribute("data-test", "find-query");
+    findInput.placeholder = "Find in page";
+    findInput.value = extras.findQuery ?? "";
+    findInput.spellcheck = false;
+    findInput.addEventListener("input", () => handlers.onFindQuery(findInput.value));
+    const prev = document.createElement("button");
+    prev.type = "button";
+    prev.setAttribute("data-test", "find-prev");
+    prev.textContent = "↑";
+    prev.setAttribute("aria-label", "Previous match");
+    prev.addEventListener("click", () => handlers.onFindPrev());
+    const next = document.createElement("button");
+    next.type = "submit";
+    next.setAttribute("data-test", "find-next");
+    next.textContent = "↓";
+    next.setAttribute("aria-label", "Next match");
+    const closeFind = document.createElement("button");
+    closeFind.type = "button";
+    closeFind.setAttribute("data-test", "find-close");
+    closeFind.textContent = "Done";
+    closeFind.addEventListener("click", () => handlers.onCloseFind());
+    findBar.append(findInput, prev, next, closeFind);
+    findBar.addEventListener("submit", (event) => {
+      event.preventDefault();
+      handlers.onFindNext();
+    });
+    root.append(findBar);
+  }
+
   const toast = document.createElement("div");
   toast.setAttribute("data-test", "toast");
   root.append(toast);
 
   const panel = document.createElement("div");
   panel.setAttribute("data-test", "library-panel");
+  panel.className = "overlay-panel";
   panel.setAttribute("hidden", "");
   root.append(panel);
+
+  const downloadsPanel = document.createElement("div");
+  downloadsPanel.setAttribute("data-test", "downloads-panel");
+  downloadsPanel.className = "overlay-panel";
+  downloadsPanel.setAttribute("hidden", "");
+  root.append(downloadsPanel);
 }
 
 const ICON_BACK =
@@ -156,6 +218,8 @@ const ICON_FORWARD =
   '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M5.8 2.7 4.7 3.8 8.9 8l-4.2 4.2 1.1 1.1L11.1 8z"/></svg>';
 const ICON_RELOAD =
   '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8 2.2a5.8 5.8 0 1 0 5.5 4h-1.6A4.2 4.2 0 1 1 8 3.8V6l3-2.2L8 1.6z"/></svg>';
+const ICON_FIND =
+  '<svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M6.5 2a4.5 4.5 0 1 0 2.8 8l3.4 3.4 1.1-1.1-3.4-3.4A4.5 4.5 0 0 0 6.5 2m0 1.5a3 3 0 1 1 0 6 3 3 0 0 1 0-6z"/></svg>';
 
 function navButton(
   test: string,

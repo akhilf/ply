@@ -5,7 +5,7 @@ use crate::store::Store;
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
-use tauri::webview::WebviewBuilder;
+use tauri::webview::{DownloadEvent, WebviewBuilder};
 use tauri::{
     AppHandle, Emitter, EventTarget, Listener, LogicalPosition, LogicalSize, Manager, WebviewUrl,
     WindowEvent,
@@ -13,7 +13,28 @@ use tauri::{
 
 pub const CHROME_HEIGHT: f64 = 92.0;
 
-pub struct LibraryOpen(pub AtomicBool);
+pub(crate) fn ensure_content_webview(app: &AppHandle, label: &str) -> Result<(), LoadError> {
+    if app.get_webview(label).is_some() {
+        return Ok(());
+    }
+    let window = app.get_window("main").ok_or(LoadError::LoadFailed)?;
+    attach_content_webview(app, &window, label).map_err(|_| LoadError::LoadFailed)?;
+    if app.get_webview(label).is_none() {
+        return Err(LoadError::LoadFailed);
+    }
+    Ok(())
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ChromeOverlay {
+    None,
+    Library,
+    Downloads,
+}
+
+pub struct OverlayState(pub Mutex<ChromeOverlay>);
+
+pub struct FindOpen(pub AtomicBool);
 
 #[derive(Clone, Serialize, Deserialize)]
 struct EngineUrlPayload {
@@ -180,12 +201,15 @@ fn attach_content_webview(
     window: &tauri::Window,
     label: &str,
 ) -> tauri::Result<()> {
-    let (pos, size) = content_slot(window)?;
+    let (pos, size) = content_slot(window, chrome_height_of(app))?;
     let blank = url::Url::parse("about:blank").expect("about:blank");
     let app_for_nav = app.clone();
     let tab_id = label.to_string();
     let builder = WebviewBuilder::new(label, WebviewUrl::External(blank))
         .on_navigation(move |url| {
+            if url.scheme() == "data" || url.scheme() == "about" {
+                return true;
+            }
             let app = app_for_nav.clone();
             let payload = EngineUrlPayload {
                 tab_id: tab_id.clone(),
@@ -209,37 +233,68 @@ fn attach_content_webview(
                     let _ = app.emit("engine_title", payload);
                 });
             }
+        })
+        .on_download({
+            let app_for_dl = app.clone();
+            move |_webview, event| match event {
+                DownloadEvent::Requested { url, destination } => {
+                    crate::downloads::on_requested(&app_for_dl, &url, destination)
+                }
+                DownloadEvent::Finished { url, path, success } => {
+                    crate::downloads::on_finished(&app_for_dl, &url, path, success);
+                    true
+                }
+                _ => true,
+            }
         });
     let webview = window.add_child(builder, pos, size)?;
     let _ = webview.show();
     Ok(())
 }
 
-fn content_slot(window: &tauri::Window) -> tauri::Result<(LogicalPosition<f64>, LogicalSize<f64>)> {
-    let scale = window.scale_factor()?;
-    let logical = window.inner_size()?.to_logical::<f64>(scale);
-    let height = (logical.height - CHROME_HEIGHT).max(1.0);
-    Ok((
-        LogicalPosition::new(0.0, CHROME_HEIGHT),
-        LogicalSize::new(logical.width, height),
-    ))
+const FIND_EXTRA: f64 = 40.0;
+
+fn chrome_height_of(app: &AppHandle) -> f64 {
+    let mut height = CHROME_HEIGHT;
+    if find_is_open(app) {
+        height += FIND_EXTRA;
+    }
+    height
 }
 
-fn chrome_slot(window: &tauri::Window) -> tauri::Result<(LogicalPosition<f64>, LogicalSize<f64>)> {
-    let scale = window.scale_factor()?;
-    let logical = window.inner_size()?.to_logical::<f64>(scale);
-    Ok((
-        LogicalPosition::new(0.0, 0.0),
-        LogicalSize::new(logical.width, CHROME_HEIGHT),
-    ))
-}
-
-fn window_full_slot(window: &tauri::Window) -> tauri::Result<(LogicalPosition<f64>, LogicalSize<f64>)> {
+fn window_full_slot(
+    window: &tauri::Window,
+) -> tauri::Result<(LogicalPosition<f64>, LogicalSize<f64>)> {
     let scale = window.scale_factor()?;
     let logical = window.inner_size()?.to_logical::<f64>(scale);
     Ok((
         LogicalPosition::new(0.0, 0.0),
         LogicalSize::new(logical.width, logical.height),
+    ))
+}
+
+fn content_slot(
+    window: &tauri::Window,
+    chrome_h: f64,
+) -> tauri::Result<(LogicalPosition<f64>, LogicalSize<f64>)> {
+    let scale = window.scale_factor()?;
+    let logical = window.inner_size()?.to_logical::<f64>(scale);
+    let height = (logical.height - chrome_h).max(1.0);
+    Ok((
+        LogicalPosition::new(0.0, chrome_h),
+        LogicalSize::new(logical.width, height),
+    ))
+}
+
+fn chrome_slot(
+    window: &tauri::Window,
+    chrome_h: f64,
+) -> tauri::Result<(LogicalPosition<f64>, LogicalSize<f64>)> {
+    let scale = window.scale_factor()?;
+    let logical = window.inner_size()?.to_logical::<f64>(scale);
+    Ok((
+        LogicalPosition::new(0.0, 0.0),
+        LogicalSize::new(logical.width, chrome_h),
     ))
 }
 
@@ -255,10 +310,55 @@ fn tab_labels_and_active(app: &AppHandle) -> (Vec<String>, String) {
     )
 }
 
+fn overlay_of(app: &AppHandle) -> ChromeOverlay {
+    app.try_state::<OverlayState>()
+        .and_then(|s| s.0.lock().ok().map(|g| *g))
+        .unwrap_or(ChromeOverlay::None)
+}
+
+fn set_overlay(app: &AppHandle, overlay: ChromeOverlay) {
+    if let Some(state) = app.try_state::<OverlayState>() {
+        if let Ok(mut guard) = state.0.lock() {
+            *guard = overlay;
+        }
+    }
+    layout_webviews(app);
+}
+
 pub fn set_library_open(app: &AppHandle, open: bool) {
-    app.state::<LibraryOpen>()
-        .0
-        .store(open, Ordering::Relaxed);
+    let current = overlay_of(app);
+    let next = if open {
+        ChromeOverlay::Library
+    } else if current == ChromeOverlay::Library {
+        ChromeOverlay::None
+    } else {
+        current
+    };
+    set_overlay(app, next);
+}
+
+pub fn set_downloads_open(app: &AppHandle, open: bool) {
+    let current = overlay_of(app);
+    let next = if open {
+        ChromeOverlay::Downloads
+    } else if current == ChromeOverlay::Downloads {
+        ChromeOverlay::None
+    } else {
+        current
+    };
+    set_overlay(app, next);
+}
+
+fn find_is_open(app: &AppHandle) -> bool {
+    app.try_state::<FindOpen>()
+        .map(|s| s.0.load(Ordering::Relaxed))
+        .unwrap_or(false)
+}
+
+pub fn set_find_open(app: &AppHandle, open: bool) {
+    if let Some(state) = app.try_state::<FindOpen>() {
+        state.0.store(open, Ordering::Relaxed);
+    }
     layout_webviews(app);
 }
 
@@ -266,13 +366,12 @@ pub fn layout_webviews(app: &AppHandle) {
     let Some(window) = app.get_window("main") else {
         return;
     };
-    let library_open = app
-        .try_state::<LibraryOpen>()
-        .map(|s| s.0.load(Ordering::Relaxed))
-        .unwrap_or(false);
+    let overlay_open = overlay_of(app) != ChromeOverlay::None;
     let (labels, active) = tab_labels_and_active(app);
-    if library_open {
-        if let (Ok((pos, size)), Some(chrome)) = (window_full_slot(&window), app.get_webview("chrome")) {
+    if overlay_open {
+        if let (Ok((pos, size)), Some(chrome)) =
+            (window_full_slot(&window), app.get_webview("chrome"))
+        {
             let _ = chrome.set_position(pos);
             let _ = chrome.set_size(size);
         }
@@ -283,11 +382,14 @@ pub fn layout_webviews(app: &AppHandle) {
         }
         return;
     }
-    if let (Ok((cpos, csize)), Some(chrome)) = (chrome_slot(&window), app.get_webview("chrome")) {
+    let chrome_h = chrome_height_of(app);
+    if let (Ok((cpos, csize)), Some(chrome)) =
+        (chrome_slot(&window, chrome_h), app.get_webview("chrome"))
+    {
         let _ = chrome.set_position(cpos);
         let _ = chrome.set_size(csize);
     }
-    let Ok((pos, size)) = content_slot(&window) else {
+    let Ok((pos, size)) = content_slot(&window, chrome_h) else {
         return;
     };
     for label in labels {
@@ -333,21 +435,34 @@ pub fn create_main_window(app: &AppHandle) -> tauri::Result<()> {
         .inner_size(1100.0, 760.0)
         .build()?;
 
-    let (cpos, csize) = chrome_slot(&window)?;
+    let (cpos, csize) = chrome_slot(&window, CHROME_HEIGHT)?;
     let chrome = WebviewBuilder::new("chrome", WebviewUrl::App("index.html".into()));
     let chrome = window.add_child(chrome, cpos, csize)?;
     let _ = chrome.set_auto_resize(false);
 
-    let data_dir = app.path().app_data_dir().unwrap_or_else(|_| std::env::temp_dir());
+    let data_dir = app
+        .path()
+        .app_data_dir()
+        .unwrap_or_else(|_| std::env::temp_dir());
     let _ = std::fs::create_dir_all(&data_dir);
     let store = Store::open_path(&data_dir.join("ply.sqlite"));
+    app.manage(OverlayState(Mutex::new(ChromeOverlay::None)));
+    app.manage(FindOpen(AtomicBool::new(false)));
+    app.manage(Mutex::new(crate::downloads::DownloadManager::new()));
     let factory_app = app.clone();
     let session = BrowserSession::new(
         store,
-        Box::new(move |id| Box::new(NativeEngine::new(factory_app.clone(), id.to_string()))),
+        Box::new(move |id, kind| match kind {
+            crate::engine::EngineKind::Native => {
+                Box::new(NativeEngine::new(factory_app.clone(), id.to_string()))
+            }
+            crate::engine::EngineKind::Toy => Box::new(crate::toy::ToyEngine::new(
+                factory_app.clone(),
+                id.to_string(),
+            )),
+        }),
     );
     app.manage(Mutex::new(session));
-    app.manage(LibraryOpen(AtomicBool::new(false)));
 
     let listen_app = app.clone();
     let _ = app.listen("engine_url", move |event| {

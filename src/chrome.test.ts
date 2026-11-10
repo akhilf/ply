@@ -34,6 +34,12 @@ function noopHandlers(): ChromeHandlers {
     onReload: () => {},
     onToggleBookmark: () => {},
     onOpenLibrary: () => {},
+    onOpenDownloads: () => {},
+    onOpenFind: () => {},
+    onFindQuery: () => {},
+    onFindNext: () => {},
+    onFindPrev: () => {},
+    onCloseFind: () => {},
   };
 }
 
@@ -82,6 +88,30 @@ describe("renderChrome", () => {
     expect(brand.querySelector(".ply-wordmark")!.textContent).toBe("Ply");
   });
 
+  it("does not show the Toy engine switch", () => {
+    const root = document.createElement("div");
+    renderChrome(root, base, noopHandlers());
+    expect(root.querySelector("[data-test=engine-toy]")).toBeNull();
+    expect(root.querySelector("[data-test=engine-native]")).toBeNull();
+  });
+
+  it("opens find in page from the toolbar", () => {
+    const root = document.createElement("div");
+    const calls: string[] = [];
+    const handlers = {
+      ...noopHandlers(),
+      onOpenFind: () => calls.push("open"),
+      onFindNext: () => calls.push("next"),
+    };
+    renderChrome(root, base, handlers, { findOpen: true, findQuery: "hello" });
+    expect(root.querySelector<HTMLInputElement>("[data-test=find-query]")!.value).toBe("hello");
+    root.querySelector<HTMLButtonElement>("[data-test=find]")!.click();
+    root.querySelector("form.find-bar")!.dispatchEvent(
+      new Event("submit", { bubbles: true, cancelable: true }),
+    );
+    expect(calls).toEqual(["open", "next"]);
+  });
+
   it("shows the memory persist banner", () => {
     const root = document.createElement("div");
     renderChrome(root, { ...base, persist_mode: "memory" }, noopHandlers());
@@ -90,6 +120,20 @@ describe("renderChrome", () => {
     expect(banner.textContent).toContain(
       "Bookmarks and history will not persist this launch.",
     );
+  });
+
+  it("opens downloads and badges in-progress saves", () => {
+    const root = document.createElement("div");
+    const calls: string[] = [];
+    const handlers = {
+      ...noopHandlers(),
+      onOpenDownloads: () => calls.push("open"),
+    };
+    renderChrome(root, base, handlers, { downloadSaving: 2 });
+    const btn = root.querySelector<HTMLButtonElement>("[data-test=downloads]")!;
+    expect(root.querySelector("[data-test=downloads-badge]")!.textContent).toBe("2");
+    btn.click();
+    expect(calls).toEqual(["open"]);
   });
 });
 // ai-generated end

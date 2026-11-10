@@ -7,7 +7,9 @@ Owner: [akhilf](https://github.com/akhilf)
 
 ![Ply opening Google](docs/ply.png)
 
-## What it does (Stage 1)
+## What it does
+
+**Stage 1**
 
 - Tabs, address bar, back / forward / reload
 - Bookmarks and history (SQLite in the app data directory)
@@ -15,7 +17,11 @@ Owner: [akhilf](https://github.com/akhilf)
 - Search: non-URL input goes to DuckDuckGo
 - macOS, Windows, and Linux (Tauri 2 + OS webview)
 
-Stage 2 (not in this tree yet) will add a small HTML/CSS engine in Rust. Same chrome, different page ply.
+**Stage 2 — daily driver**
+
+- Downloads: OS webview saves go to your Downloads folder; open or reveal from chrome
+- Find in page (⌘F / Ctrl+F), next and previous match
+- Browsing history grouped by day, with visit counts and search
 
 ## Architecture
 
@@ -26,8 +32,8 @@ One native window. Chrome and page content never share a JavaScript world. TypeS
 ```mermaid
 flowchart TB
   subgraph window["Tauri window"]
-    chrome["Chrome webview — trusted TypeScript<br/>tabs · URL · back/forward/reload · Library"]
-    content["Content slot — untrusted<br/>Stage 1 NativeEngine OS webview · Stage 2 ToyEngine"]
+    chrome["Chrome webview — trusted TypeScript<br/>tabs · URL · back/forward/reload · Library · Downloads · Find"]
+    content["Content slot — untrusted<br/>OS webview"]
     chrome --- content
   end
   rust["Rust core — source of truth"]
@@ -96,6 +102,8 @@ The first Rust compile can take several minutes. After that, a **Ply** window op
 
 Type a URL (for example `www.google.com`) and press Enter.
 
+Find in page with ⌘F (Ctrl+F on Windows/Linux). Open **Library** for history grouped by day, and **Downloads** after saving a file.
+
 ### 5. Tests (optional)
 
 ```bash
@@ -108,7 +116,9 @@ cd src-tauri && cargo test --lib
 | Path | Role |
 | --- | --- |
 | `src/` | TypeScript chrome UI |
-| `src-tauri/` | Rust session, tabs, store, native webviews |
+| `src-tauri/` | Rust session, tabs, store, native webviews, toy engine |
+| `src-tauri/src/toy/` | HTML/CSS parser, layout, paint |
+| `fixtures/` | `ply://` pages for the toy engine |
 | `index.html` | Chrome shell only — pages load in separate webviews |
 | `docs/ply.png` | Screenshot of Ply on GitHub |
 | `docs/architecture.svg` | Architecture diagram |

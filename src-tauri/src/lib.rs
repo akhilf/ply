@@ -1,10 +1,12 @@
 // ai-generated
 mod classify;
 mod commands;
+mod downloads;
 mod engine;
 mod session;
 mod shell;
 mod store;
+mod toy;
 // ai-generated end
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -28,7 +30,15 @@ pub fn run() {
             commands::list_bookmarks,
             commands::list_history,
             commands::search_history,
-            commands::set_library_open
+            commands::set_library_open,
+            commands::set_engine,
+            commands::list_downloads,
+            commands::set_downloads_open,
+            commands::open_download,
+            commands::reveal_download,
+            commands::clear_downloads,
+            commands::set_find_open,
+            commands::find_in_page
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

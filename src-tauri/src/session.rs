@@ -20,11 +20,11 @@ pub struct TabManager {
     tabs: Vec<Tab>,
     active: String,
     engines: HashMap<String, Box<dyn Engine>>,
-    factory: Box<dyn Fn(&str) -> Box<dyn Engine> + Send>,
+    factory: Box<dyn Fn(&str, EngineKind) -> Box<dyn Engine> + Send>,
 }
 
 impl TabManager {
-    pub fn new(factory: Box<dyn Fn(&str) -> Box<dyn Engine> + Send>) -> Self {
+    pub fn new(factory: Box<dyn Fn(&str, EngineKind) -> Box<dyn Engine> + Send>) -> Self {
         let mut m = Self {
             next_id: 0,
             tabs: Vec::new(),
@@ -71,13 +71,16 @@ impl TabManager {
         let engine = self.engines.get_mut(id).ok_or(LoadError::LoadFailed)?;
         match engine.navigate(url) {
             Ok(()) => {
+                let painted = self.engines.get(id).and_then(|e| e.last_title());
                 self.write_tab(id, |t| {
                     t.url = url.to_string();
-                    t.title = if url == "about:blank" {
-                        "New Tab".to_string()
-                    } else {
-                        url.to_string()
-                    };
+                    t.title = painted.filter(|s| !s.is_empty()).unwrap_or_else(|| {
+                        if url == "about:blank" {
+                            "New Tab".to_string()
+                        } else {
+                            url.to_string()
+                        }
+                    });
                     t.load_error = None;
                 });
                 Ok(())
@@ -115,6 +118,30 @@ impl TabManager {
             .get_mut(id)
             .ok_or(LoadError::LoadFailed)?
             .reload()
+    }
+
+    pub fn set_engine(&mut self, id: &str, kind: EngineKind) -> Result<(), LoadError> {
+        let url = self
+            .tab(id)
+            .map(|t| t.url.clone())
+            .ok_or(LoadError::LoadFailed)?;
+        let visible = self.active == id;
+        self.engines.remove(id);
+        let mut engine = (self.factory)(id, kind);
+        engine.set_visible(visible);
+        let nav = engine.navigate(&url);
+        self.engines.insert(id.to_string(), engine);
+        let painted = self.engines.get(id).and_then(|e| e.last_title());
+        self.write_tab(id, |t| {
+            t.engine = kind;
+            t.load_error = nav.as_ref().err().copied();
+            if nav.is_ok() {
+                if let Some(title) = painted {
+                    t.title = title;
+                }
+            }
+        });
+        nav
     }
 
     fn sync_url_from_engine(&mut self, id: &str) {
@@ -187,7 +214,7 @@ impl TabManager {
 
     fn spawn_blank(&mut self) -> String {
         let id = self.alloc();
-        let mut engine = (self.factory)(&id);
+        let mut engine = (self.factory)(&id, EngineKind::Native);
         let _ = engine.navigate("about:blank");
         let tab = Tab {
             id: id.clone(),
@@ -221,7 +248,10 @@ impl TabManager {
 
     #[cfg(test)]
     pub fn engine_visible(&self, id: &str) -> bool {
-        self.engines.get(id).map(|e| e.is_visible()).unwrap_or(false)
+        self.engines
+            .get(id)
+            .map(|e| e.is_visible())
+            .unwrap_or(false)
     }
 }
 
@@ -263,7 +293,10 @@ pub struct BrowserSession {
 }
 
 impl BrowserSession {
-    pub fn new(store: Store, factory: Box<dyn Fn(&str) -> Box<dyn Engine> + Send>) -> Self {
+    pub fn new(
+        store: Store,
+        factory: Box<dyn Fn(&str, EngineKind) -> Box<dyn Engine> + Send>,
+    ) -> Self {
         Self {
             tabs: TabManager::new(factory),
             store,
@@ -347,6 +380,13 @@ impl BrowserSession {
         self.emit_ok(None)
     }
 
+    pub fn set_engine(&mut self, tab_id: &str, kind: EngineKind) -> CommandOutcome {
+        let previous = self.current_url_of(tab_id);
+        let _ = self.tabs.set_engine(tab_id, kind);
+        let notice = self.visit_active(tab_id, &previous);
+        self.emit_ok(notice)
+    }
+
     pub fn toggle_bookmark(&mut self, tab_id: &str) -> CommandOutcome {
         let Some(tab) = self.tabs.tab(tab_id) else {
             return self.emit_ok(None);
@@ -428,7 +468,27 @@ mod tests {
     use crate::engine::FakeEngine;
 
     fn mgr() -> TabManager {
-        TabManager::new(Box::new(|_id| Box::new(FakeEngine::new())))
+        TabManager::new(Box::new(|_id, _kind| Box::new(FakeEngine::new())))
+    }
+
+    #[test]
+    fn set_engine_reloads_without_history() {
+        let mut m = mgr();
+        let id = m.active_tab_id().to_string();
+        m.navigate_url(&id, "https://a.test/").unwrap();
+        m.navigate_url(&id, "https://b.test/").unwrap();
+        assert!(m.can_go_back());
+        m.set_engine(&id, EngineKind::Toy).unwrap();
+        assert_eq!(m.tab(&id).unwrap().engine, EngineKind::Toy);
+        assert_eq!(m.tab(&id).unwrap().url, "https://b.test/");
+        assert!(!m.can_go_back());
+    }
+
+    #[test]
+    fn set_engine_unknown_tab_fails() {
+        let mut m = mgr();
+        let err = m.set_engine("tab-999", EngineKind::Toy).unwrap_err();
+        assert_eq!(err, LoadError::LoadFailed);
     }
 
     #[test]
@@ -545,7 +605,8 @@ mod tests {
     fn sess() -> (tempfile::TempDir, BrowserSession) {
         let dir = tempfile::tempdir().unwrap();
         let store = Store::open_path(&dir.path().join("ply.sqlite"));
-        let session = BrowserSession::new(store, Box::new(|_id| Box::new(FakeEngine::new())));
+        let session =
+            BrowserSession::new(store, Box::new(|_id, _kind| Box::new(FakeEngine::new())));
         (dir, session)
     }
 
@@ -580,7 +641,7 @@ mod tests {
     fn memory_store_notice_on_visit() {
         let mut s = BrowserSession::new(
             Store::open_memory_only(),
-            Box::new(|_id| Box::new(FakeEngine::new())),
+            Box::new(|_id, _kind| Box::new(FakeEngine::new())),
         );
         assert_eq!(s.snapshot().persist_mode, PersistMode::Memory);
         let id = s.snapshot().active_tab_id.clone();

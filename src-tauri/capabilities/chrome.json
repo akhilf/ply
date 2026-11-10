@@ -19,6 +19,14 @@
     "allow-list-bookmarks",
     "allow-list-history",
     "allow-search-history",
-    "allow-set-library-open"
+    "allow-set-library-open",
+    "allow-set-engine",
+    "allow-list-downloads",
+    "allow-set-downloads-open",
+    "allow-open-download",
+    "allow-reveal-download",
+    "allow-clear-downloads",
+    "allow-set-find-open",
+    "allow-find-in-page"
   ]
 }

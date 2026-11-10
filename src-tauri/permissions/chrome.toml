@@ -63,4 +63,44 @@ commands.allow = ["search_history"]
 identifier = "allow-set-library-open"
 description = "Allow chrome to expand over content for the library panel"
 commands.allow = ["set_library_open"]
+
+[[permission]]
+identifier = "allow-set-engine"
+description = "Allow chrome to switch a tab between native and toy engines"
+commands.allow = ["set_engine"]
+
+[[permission]]
+identifier = "allow-list-downloads"
+description = "Allow chrome to list downloads"
+commands.allow = ["list_downloads"]
+
+[[permission]]
+identifier = "allow-set-downloads-open"
+description = "Allow chrome to expand over content for the downloads panel"
+commands.allow = ["set_downloads_open"]
+
+[[permission]]
+identifier = "allow-open-download"
+description = "Allow chrome to open a finished download"
+commands.allow = ["open_download"]
+
+[[permission]]
+identifier = "allow-reveal-download"
+description = "Allow chrome to reveal a finished download in the folder"
+commands.allow = ["reveal_download"]
+
+[[permission]]
+identifier = "allow-clear-downloads"
+description = "Allow chrome to clear finished downloads from the list"
+commands.allow = ["clear_downloads"]
+
+[[permission]]
+identifier = "allow-set-find-open"
+description = "Allow chrome to show the find bar"
+commands.allow = ["set_find_open"]
+
+[[permission]]
+identifier = "allow-find-in-page"
+description = "Allow chrome to find text in the active page"
+commands.allow = ["find_in_page"]
 # ai-generated end

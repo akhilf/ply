@@ -24,6 +24,7 @@ pub struct VisitRow {
     pub url: String,
     pub title: String,
     pub visited_at: i64,
+    pub visit_count: i64,
 }
 
 #[derive(Debug)]
@@ -113,9 +114,9 @@ impl Store {
         let Some(conn) = self.conn.as_ref() else {
             return Vec::new();
         };
-        let mut stmt = match conn.prepare(
-            "SELECT url, title, created_at FROM bookmarks ORDER BY created_at DESC",
-        ) {
+        let mut stmt = match conn
+            .prepare("SELECT url, title, created_at FROM bookmarks ORDER BY created_at DESC")
+        {
             Ok(s) => s,
             Err(_) => return Vec::new(),
         };
@@ -136,7 +137,15 @@ impl Store {
             return Vec::new();
         };
         let mut stmt = match conn.prepare(
-            "SELECT id, url, title, visited_at FROM visits ORDER BY visited_at DESC, id DESC LIMIT ?1",
+            "SELECT v.id, v.url, v.title, v.visited_at, c.n
+             FROM visits v
+             INNER JOIN (
+                 SELECT url, MAX(id) AS max_id, COUNT(*) AS n
+                 FROM visits
+                 GROUP BY url
+             ) c ON v.id = c.max_id
+             ORDER BY v.visited_at DESC, v.id DESC
+             LIMIT ?1",
         ) {
             Ok(s) => s,
             Err(_) => return Vec::new(),
@@ -147,6 +156,7 @@ impl Store {
                 url: row.get(1)?,
                 title: row.get(2)?,
                 visited_at: row.get(3)?,
+                visit_count: row.get(4)?,
             })
         })
         .ok()
@@ -159,10 +169,16 @@ impl Store {
             return Vec::new();
         };
         let mut stmt = match conn.prepare(
-            "SELECT id, url, title, visited_at FROM visits
-             WHERE LOWER(url) LIKE '%' || LOWER(?1) || '%'
-                OR LOWER(title) LIKE '%' || LOWER(?1) || '%'
-             ORDER BY visited_at DESC, id DESC",
+            "SELECT v.id, v.url, v.title, v.visited_at, c.n
+             FROM visits v
+             INNER JOIN (
+                 SELECT url, MAX(id) AS max_id, COUNT(*) AS n
+                 FROM visits
+                 GROUP BY url
+             ) c ON v.id = c.max_id
+             WHERE LOWER(v.url) LIKE '%' || LOWER(?1) || '%'
+                OR LOWER(v.title) LIKE '%' || LOWER(?1) || '%'
+             ORDER BY v.visited_at DESC, v.id DESC",
         ) {
             Ok(s) => s,
             Err(_) => return Vec::new(),
@@ -173,6 +189,7 @@ impl Store {
                 url: row.get(1)?,
                 title: row.get(2)?,
                 visited_at: row.get(3)?,
+                visit_count: row.get(4)?,
             })
         })
         .ok()
@@ -227,10 +244,14 @@ mod tests {
         let mut s = Store::open_path(&dir.path().join("ply.sqlite"));
         s.append_visit("https://a.test/x", "Alpha").unwrap();
         s.append_visit("https://b.test/y", "Beta").unwrap();
-        assert_eq!(s.list_history(10)[0].title, "Beta");
+        s.append_visit("https://a.test/x", "Alpha").unwrap();
+        assert_eq!(s.list_history(10)[0].title, "Alpha");
+        assert_eq!(s.list_history(10)[0].visit_count, 2);
+        assert_eq!(s.list_history(10).len(), 2);
         let hits = s.search_history("alpha");
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].url, "https://a.test/x");
+        assert_eq!(hits[0].visit_count, 2);
     }
 
     #[test]

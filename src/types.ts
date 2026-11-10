@@ -37,6 +37,7 @@ export type VisitRow = {
   url: string;
   title: string;
   visited_at: number;
+  visit_count: number;
 };
 
 export type ChromeHandlers = {
@@ -49,5 +50,17 @@ export type ChromeHandlers = {
   onReload: (tabId: string) => void;
   onToggleBookmark: (tabId: string) => void;
   onOpenLibrary: () => void;
+  onOpenDownloads: () => void;
+  onOpenFind: () => void;
+  onFindQuery: (query: string) => void;
+  onFindNext: () => void;
+  onFindPrev: () => void;
+  onCloseFind: () => void;
+};
+
+export type ChromeExtras = {
+  downloadSaving?: number;
+  findOpen?: boolean;
+  findQuery?: string;
 };
 // ai-generated end

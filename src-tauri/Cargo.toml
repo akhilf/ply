@@ -22,6 +22,12 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = ["unstable"] }
 url = "2"
 rusqlite = { version = "0.32", features = ["bundled"] }
+tiny-skia = { version = "0.11", features = ["png-format"] }
+font8x8 = "0.3"
+png = "0.17"
+ureq = { version = "2.12", default-features = false, features = ["tls"] }
+base64 = "0.22"
+percent-encoding = "2"
 # ai-generated end
 tauri-plugin-opener = "2"
 serde = { version = "1", features = ["derive"] }

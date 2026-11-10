@@ -35,6 +35,9 @@ pub trait Engine: Send {
     fn can_go_back(&self) -> bool;
     fn can_go_forward(&self) -> bool;
     fn current_url(&self) -> Option<String>;
+    fn last_title(&self) -> Option<String> {
+        None
+    }
 }
 
 pub struct FakeEngine {
